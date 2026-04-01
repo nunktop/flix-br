@@ -376,14 +376,6 @@ export function Admin() {
                   size={280}
                   level="H"
                   includeMargin={true}
-                  imageSettings={{
-                    src: "https://upload.wikimedia.org/wikipedia/commons/0/08/Netflix_2015_logo.svg",
-                    x: undefined,
-                    y: undefined,
-                    height: 40,
-                    width: 40,
-                    excavate: true,
-                  }}
                 />
               </div>
             </div>
