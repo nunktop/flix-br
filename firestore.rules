@@ -1,0 +1,116 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() && (
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+        request.auth.token.email == "redmi11jogos@gmail.com"
+      );
+    }
+
+    function hasOnlyAllowedFields(fields) {
+      return request.resource.data.keys().hasOnly(fields);
+    }
+
+    function hasRequiredFields(fields) {
+      return request.resource.data.keys().hasAll(fields);
+    }
+
+    // ===============================================================
+    // Domain Validators
+    // ===============================================================
+
+    function isValidUser(data) {
+      return hasOnlyAllowedFields(['id', 'name', 'email', 'role', 'plan', 'createdAt']) &&
+             data.id is string &&
+             data.name is string && data.name.size() > 0 && data.name.size() < 100 &&
+             data.email is string && data.email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$") &&
+             data.role in ['admin', 'user'] &&
+             data.plan in ['free', 'premium'] &&
+             data.createdAt is number;
+    }
+
+    function isValidMovie(data) {
+      return hasRequiredFields(['id', 'overview', 'poster_path', 'backdrop_path', 'vote_average', 'genre_ids']) &&
+             data.id is number &&
+             data.overview is string && data.overview.size() < 5000 &&
+             data.poster_path is string &&
+             data.backdrop_path is string &&
+             data.vote_average is number &&
+             data.genre_ids is list;
+    }
+
+    function isValidProgress(data) {
+      return hasRequiredFields(['id', 'type', 'timestamp']) &&
+             data.id is number &&
+             data.type in ['movie', 'tv'] &&
+             data.timestamp is number;
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    // Users collection
+    match /users/{userId} {
+      allow read: if isOwner(userId) || isAdmin();
+      
+      allow create: if isAuthenticated() && 
+                      isValidUser(request.resource.data) && 
+                      request.resource.data.id == request.auth.uid &&
+                      (request.resource.data.role == 'user' || isAdmin());
+                      
+      allow update: if isAuthenticated() && 
+                      isValidUser(request.resource.data) && 
+                      (
+                        (isOwner(userId) && 
+                         request.resource.data.id == resource.data.id && 
+                         request.resource.data.role == resource.data.role) || 
+                        isAdmin()
+                      );
+      
+      allow delete: if isAdmin();
+
+      // User subcollections
+      match /favorites/{movieId} {
+        allow read: if isOwner(userId) || isAdmin();
+        allow write: if isOwner(userId) && isValidMovie(request.resource.data);
+      }
+
+      match /progress/{contentId} {
+        allow read: if isOwner(userId) || isAdmin();
+        allow write: if isOwner(userId) && isValidProgress(request.resource.data);
+      }
+    }
+
+    // Global content added by admin
+    match /content/{contentId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin() && isValidMovie(request.resource.data);
+    }
+
+    // Global settings
+    match /settings/global {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+    
+    // Test connection
+    match /test/connection {
+      allow read: if true;
+    }
+  }
+}

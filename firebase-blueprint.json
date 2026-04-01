@@ -1,0 +1,75 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile information",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "email": { "type": "string" },
+        "role": { "type": "string", "enum": ["admin", "user"] },
+        "plan": { "type": "string", "enum": ["free", "premium"] },
+        "createdAt": { "type": "number" }
+      },
+      "required": ["id", "name", "email", "role", "plan", "createdAt"]
+    },
+    "Movie": {
+      "title": "Movie",
+      "description": "Movie or TV show metadata",
+      "type": "object",
+      "properties": {
+        "id": { "type": "number" },
+        "title": { "type": "string" },
+        "name": { "type": "string" },
+        "overview": { "type": "string" },
+        "poster_path": { "type": "string" },
+        "backdrop_path": { "type": "string" },
+        "vote_average": { "type": "number" },
+        "genre_ids": { "type": "array", "items": { "type": "number" } },
+        "media_type": { "type": "string", "enum": ["movie", "tv"] }
+      },
+      "required": ["id", "overview", "poster_path", "backdrop_path", "vote_average", "genre_ids"]
+    },
+    "ContentProgress": {
+      "title": "ContentProgress",
+      "description": "User watch progress for a movie or episode",
+      "type": "object",
+      "properties": {
+        "id": { "type": "number" },
+        "type": { "type": "string", "enum": ["movie", "tv"] },
+        "season": { "type": "number" },
+        "episode": { "type": "number" },
+        "timestamp": { "type": "number" }
+      },
+      "required": ["id", "type", "timestamp"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User profile documents"
+    },
+    "/users/{userId}/favorites/{movieId}": {
+      "schema": "Movie",
+      "description": "User favorite movies"
+    },
+    "/users/{userId}/progress/{contentId}": {
+      "schema": "ContentProgress",
+      "description": "User watch progress"
+    },
+    "/content/{contentId}": {
+      "schema": "Movie",
+      "description": "Global manual content added by admin"
+    },
+    "/settings/global": {
+      "schema": {
+        "type": "object",
+        "properties": {
+          "pinnedContentId": { "type": "number" }
+        }
+      },
+      "description": "Global application settings"
+    }
+  }
+}

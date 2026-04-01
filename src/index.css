@@ -1,0 +1,46 @@
+@import "tailwindcss";
+
+@theme {
+  --color-netflix-red: #e50914;
+  --color-netflix-black: #0f0f0f;
+  --color-netflix-dark: #141414;
+  --color-netflix-gray: #808080;
+}
+
+@layer base {
+  body {
+    @apply bg-netflix-black text-white font-sans antialiased;
+  }
+
+  /* Custom scrollbar */
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  ::-webkit-scrollbar-track {
+    background: #141414;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #333;
+    border-radius: 4px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: #444;
+  }
+}
+
+.aspect-video-netflix {
+  aspect-ratio: 16 / 9;
+}
+
+.text-shadow-lg {
+  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.8);
+}
+
+.bg-gradient-to-b-netflix {
+  background: linear-gradient(to bottom, rgba(0,0,0,0.7) 0%, rgba(0,0,0,0) 100%);
+}
+
+.bg-gradient-to-t-netflix {
+  background: linear-gradient(to top, #0f0f0f 0%, rgba(15,15,15,0) 100%);
+}
