@@ -16,9 +16,14 @@ service cloud.firestore {
 
     function isAdmin() {
       return isAuthenticated() && (
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin') ||
         request.auth.token.email == "redmi11jogos@gmail.com"
       );
+    }
+
+    function isManualUser(email) {
+      return request.auth == null && email is string;
     }
 
     function hasOnlyAllowedFields(fields) {
@@ -34,7 +39,7 @@ service cloud.firestore {
     // ===============================================================
 
     function isValidUser(data) {
-      return hasOnlyAllowedFields(['id', 'name', 'email', 'role', 'plan', 'createdAt']) &&
+      return hasOnlyAllowedFields(['id', 'name', 'email', 'password', 'role', 'plan', 'createdAt']) &&
              data.id is string &&
              data.name is string && data.name.size() > 0 && data.name.size() < 100 &&
              data.email is string && data.email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$") &&
@@ -66,11 +71,11 @@ service cloud.firestore {
 
     // Users collection
     match /users/{userId} {
-      allow read: if isOwner(userId) || isAdmin();
+      allow read: if isOwner(userId) || isAdmin() || (request.auth == null && resource.data.id == userId);
       
-      allow create: if isAuthenticated() && 
+      allow create: if (isAuthenticated() || isAdmin()) && 
                       isValidUser(request.resource.data) && 
-                      request.resource.data.id == request.auth.uid &&
+                      (request.resource.data.id == request.auth.uid || isAdmin()) &&
                       (request.resource.data.role == 'user' || isAdmin());
                       
       allow update: if isAuthenticated() && 

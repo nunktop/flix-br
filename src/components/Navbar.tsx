@@ -72,7 +72,7 @@ export function Navbar() {
           <div className="absolute right-0 top-full mt-2 w-56 bg-black/90 border border-gray-800 rounded shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all py-2">
             <div className="px-4 py-2 border-b border-gray-800">
               <p className="text-sm font-bold text-white truncate">{user?.name}</p>
-              <p className="text-[10px] text-gray-400 uppercase tracking-wider">Plano {user?.plan === 'premium' ? 'Premium' : 'Grátis'}</p>
+            <p className="text-[10px] text-gray-400 uppercase tracking-wider">Plano {user?.plan === 'premium' ? 'Premium' : 'Grátis'}</p>
             </div>
             <Link to="/profile" className="flex items-center gap-2 px-4 py-2 text-sm hover:bg-gray-800 transition-colors">
               <User size={16} /> Perfil

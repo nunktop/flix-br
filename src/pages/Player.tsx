@@ -49,9 +49,25 @@ export function Player() {
     });
   }, [season, episode]);
 
-  const embedUrl = type === 'movie'
-    ? `https://myembed.biz/filme/${id}`
-    : `https://myembed.biz/serie/${id}/${season}/${episode}`;
+  const [playerSource, setPlayerSource] = useState<'myembed' | 'supervideo' | 'embedbiz'>('myembed');
+
+  const getEmbedUrl = () => {
+    if (playerSource === 'myembed') {
+      return type === 'movie'
+        ? `https://myembed.biz/filme/${id}`
+        : `https://myembed.biz/serie/${id}/${season}/${episode}`;
+    }
+    if (playerSource === 'supervideo') {
+      return type === 'movie'
+        ? `https://supervideo.com.br/filme/${id}`
+        : `https://supervideo.com.br/serie/${id}/${season}/${episode}`;
+    }
+    return type === 'movie'
+      ? `https://embed.biz/filme/${id}`
+      : `https://embed.biz/serie/${id}/${season}/${episode}`;
+  };
+
+  const embedUrl = getEmbedUrl();
 
   return (
     <div className="fixed inset-0 bg-black z-[100] flex flex-col">
@@ -68,14 +84,27 @@ export function Player() {
           <h1 className="text-lg md:text-xl font-bold truncate max-w-[200px] md:max-w-md">
             {content?.title || content?.name}
           </h1>
-          {type === 'tv' && (
-            <p className="text-xs text-gray-400">
-              Temporada {season}, Episódio {episode}
-            </p>
-          )}
+          <div className="flex items-center justify-center gap-2 mt-1">
+            {type === 'tv' && (
+              <p className="text-xs text-gray-400">
+                T{season}:E{episode}
+              </p>
+            )}
+            <span className="text-[10px] bg-netflix-red px-1 rounded font-bold uppercase">Premium</span>
+          </div>
         </div>
         
-        <div className="w-24" /> {/* Spacer */}
+        <div className="flex items-center gap-2">
+          <select 
+            value={playerSource}
+            onChange={(e) => setPlayerSource(e.target.value as any)}
+            className="bg-black/60 border border-gray-700 rounded px-2 py-1 text-xs font-bold outline-none focus:border-netflix-red"
+          >
+            <option value="myembed">Player 1 (Principal)</option>
+            <option value="supervideo">Player 2 (Sem Anúncio)</option>
+            <option value="embedbiz">Player 3 (Alternativo)</option>
+          </select>
+        </div>
       </div>
 
       <div className="flex-1 relative">
@@ -84,6 +113,8 @@ export function Player() {
           className="w-full h-full border-none"
           allowFullScreen
           title="Video Player"
+          allow="autoplay; encrypted-media; picture-in-picture"
+          sandbox="allow-forms allow-pointer-lock allow-same-origin allow-scripts allow-top-navigation-by-user-activation"
         />
       </div>
 

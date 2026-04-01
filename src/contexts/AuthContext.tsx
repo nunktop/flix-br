@@ -11,6 +11,7 @@ import {
 import { 
   doc, 
   getDoc, 
+  getDocs,
   setDoc, 
   updateDoc, 
   deleteDoc, 
@@ -47,197 +48,209 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Test connection to Firestore
+  // Initialize users and session from localStorage
   useEffect(() => {
-    const testConnection = async () => {
+    const initAuth = () => {
       try {
-        await getDocFromServer(doc(db, 'test', 'connection'));
-      } catch (error) {
-        if (error instanceof Error && error.message.includes('the client is offline')) {
-          console.error("Please check your Firebase configuration.");
-        }
-      }
-    };
-    testConnection();
-  }, []);
+        // 1. Load users from localStorage
+        const storedUsers = localStorage.getItem('flix_users');
+        let currentUsers: User[] = storedUsers ? JSON.parse(storedUsers) : [];
 
-  useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-      if (firebaseUser) {
-        const userDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
-        if (userDoc.exists()) {
-          setUser(userDoc.data() as User);
-        } else {
-          // If user exists in Auth but not in Firestore (shouldn't happen with normal flow)
-          const newUser: User = {
-            id: firebaseUser.uid,
-            name: firebaseUser.displayName || 'Usuário',
-            email: firebaseUser.email || '',
-            role: firebaseUser.email === 'redmi11jogos@gmail.com' ? 'admin' : 'user',
-            plan: 'free',
+        // 2. Create default admin if no users exist
+        if (currentUsers.length === 0) {
+          const defaultAdmin: User = {
+            id: 'admin-001',
+            name: "Admin",
+            email: "admin@flixbr.com",
+            password: "123",
+            role: "admin",
+            plan: "premium",
             createdAt: Date.now()
           };
-          await setDoc(doc(db, 'users', firebaseUser.uid), newUser);
-          setUser(newUser);
+          currentUsers = [defaultAdmin];
+          localStorage.setItem('flix_users', JSON.stringify(currentUsers));
         }
-      } else {
-        setUser(null);
-      }
-      setLoading(false);
-    });
+        setUsers(currentUsers);
 
-    return unsubscribe;
+        // 3. Check for existing session
+        const storedSession = localStorage.getItem('session');
+        if (storedSession) {
+          const sessionData = JSON.parse(storedSession);
+          const foundUser = currentUsers.find(u => u.email === sessionData.email);
+          if (foundUser) {
+            setUser(foundUser);
+          } else {
+            localStorage.removeItem('session');
+          }
+        }
+      } catch (error) {
+        console.error('Error initializing auth:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    initAuth();
   }, []);
 
-  // Admin only: listen to all users
-  useEffect(() => {
-    if (user?.role === 'admin') {
-      const unsubscribe = onSnapshot(collection(db, 'users'), (snapshot) => {
-        const usersList = snapshot.docs.map(doc => doc.data() as User);
-        setUsers(usersList);
-      }, (error) => {
-        console.error('Error fetching users:', error);
-      });
-      return unsubscribe;
-    } else {
-      setUsers([]);
-    }
-  }, [user]);
-
   const login = async (email: string, password: string) => {
-    try {
-      await signInWithEmailAndPassword(auth, email, password);
+    const trimmedEmail = email.trim().toLowerCase();
+    const foundUser = users.find(u => u.email.toLowerCase() === trimmedEmail && u.password === password);
+
+    if (foundUser) {
+      const sessionData = {
+        email: foundUser.email,
+        role: foundUser.role,
+        plan: foundUser.plan
+      };
+      localStorage.setItem('session', JSON.stringify(sessionData));
+      setUser(foundUser);
       return true;
-    } catch (error: any) {
-      console.error('Login error:', error);
-      if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
-        throw new Error('E-mail ou senha incorretos.');
-      }
-      throw new Error('Erro ao entrar. Tente novamente mais tarde.');
+    } else {
+      throw new Error('Login inválido');
     }
   };
 
   const register = async (name: string, email: string, password: string) => {
-    try {
-      const { user: firebaseUser } = await createUserWithEmailAndPassword(auth, email, password);
-      const newUser: User = {
-        id: firebaseUser.uid,
-        name,
-        email,
-        role: email === 'redmi11jogos@gmail.com' ? 'admin' : 'user',
-        plan: 'free',
-        createdAt: Date.now()
-      };
-      
-      const path = `users/${firebaseUser.uid}`;
-      try {
-        await setDoc(doc(db, path), newUser);
-      } catch (error) {
-        handleFirestoreError(error, OperationType.CREATE, path);
-      }
-      
-      setUser(newUser);
-      return true;
-    } catch (error: any) {
-      console.error('Register error:', error);
-      if (error.code === 'auth/email-already-in-use') {
-        throw new Error('Este e-mail já está em uso.');
-      }
-      if (error.code === 'auth/weak-password') {
-        throw new Error('A senha deve ter pelo menos 6 caracteres.');
-      }
-      if (error.code === 'auth/invalid-email') {
-        throw new Error('E-mail inválido.');
-      }
-      throw new Error(error.message || 'Erro ao criar conta. Tente novamente.');
+    const trimmedEmail = email.trim().toLowerCase();
+    const trimmedName = name.trim();
+
+    if (password.length < 4) {
+      throw new Error('A senha deve ter pelo menos 4 caracteres.');
     }
+
+    if (users.some(u => u.email.toLowerCase() === trimmedEmail)) {
+      throw new Error('Usuário já cadastrado');
+    }
+
+    const newUser: User = {
+      id: Math.random().toString(36).substr(2, 9),
+      name: trimmedName,
+      email: trimmedEmail,
+      password: password,
+      role: 'user',
+      plan: 'free',
+      createdAt: Date.now()
+    };
+
+    const updatedUsers = [...users, newUser];
+    setUsers(updatedUsers);
+    localStorage.setItem('flix_users', JSON.stringify(updatedUsers));
+
+    // Auto login after register
+    const sessionData = {
+      email: newUser.email,
+      role: newUser.role,
+      plan: newUser.plan
+    };
+    localStorage.setItem('session', JSON.stringify(sessionData));
+    setUser(newUser);
+    
+    return true;
   };
 
   const loginWithGoogle = async () => {
+    // Keep Google login as an option but integrate with localStorage
     try {
       const provider = new GoogleAuthProvider();
       const { user: firebaseUser } = await signInWithPopup(auth, provider);
       
-      const userDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
-      if (!userDoc.exists()) {
-        const newUser: User = {
+      const email = firebaseUser.email || '';
+      let foundUser = users.find(u => u.email.toLowerCase() === email.toLowerCase());
+
+      if (!foundUser) {
+        foundUser = {
           id: firebaseUser.uid,
           name: firebaseUser.displayName || 'Usuário',
-          email: firebaseUser.email || '',
-          role: firebaseUser.email === 'redmi11jogos@gmail.com' ? 'admin' : 'user',
+          email: email,
+          role: email === 'redmi11jogos@gmail.com' ? 'admin' : 'user',
           plan: 'free',
           createdAt: Date.now()
         };
-        const path = `users/${firebaseUser.uid}`;
-        try {
-          await setDoc(doc(db, path), newUser);
-        } catch (error) {
-          handleFirestoreError(error, OperationType.CREATE, path);
-        }
-        setUser(newUser);
-      } else {
-        setUser(userDoc.data() as User);
+        const updatedUsers = [...users, foundUser];
+        setUsers(updatedUsers);
+        localStorage.setItem('flix_users', JSON.stringify(updatedUsers));
       }
+
+      const sessionData = {
+        email: foundUser.email,
+        role: foundUser.role,
+        plan: foundUser.plan
+      };
+      localStorage.setItem('session', JSON.stringify(sessionData));
+      setUser(foundUser);
       return true;
     } catch (error: any) {
       console.error('Google login error:', error);
-      throw new Error('Erro ao entrar com Google. Tente novamente.');
+      throw error;
     }
   };
 
   const logout = async () => {
-    await signOut(auth);
+    localStorage.removeItem('session');
     setUser(null);
   };
 
   const updateUserPlan = async (userId: string, plan: UserPlan) => {
-    const path = `users/${userId}`;
-    try {
-      await updateDoc(doc(db, path), { plan });
-    } catch (error) {
-      handleFirestoreError(error, OperationType.UPDATE, path);
+    const updatedUsers = users.map(u => u.id === userId ? { ...u, plan } : u);
+    setUsers(updatedUsers);
+    localStorage.setItem('flix_users', JSON.stringify(updatedUsers));
+    
+    // Update current user if it's the one being changed
+    if (user && user.id === userId) {
+      const updatedUser = { ...user, plan };
+      setUser(updatedUser);
+      localStorage.setItem('session', JSON.stringify({
+        email: updatedUser.email,
+        role: updatedUser.role,
+        plan: updatedUser.plan
+      }));
     }
   };
 
   const updateUserDetails = async (userId: string, details: Partial<User>) => {
-    const path = `users/${userId}`;
-    try {
-      // Remove sensitive fields if any
-      const { password, id, ...safeDetails } = details as any;
-      await updateDoc(doc(db, path), safeDetails);
-    } catch (error) {
-      handleFirestoreError(error, OperationType.UPDATE, path);
+    const updatedUsers = users.map(u => u.id === userId ? { ...u, ...details } : u);
+    setUsers(updatedUsers);
+    localStorage.setItem('flix_users', JSON.stringify(updatedUsers));
+
+    if (user && user.id === userId) {
+      const updatedUser = { ...user, ...details };
+      setUser(updatedUser);
+      localStorage.setItem('session', JSON.stringify({
+        email: updatedUser.email,
+        role: updatedUser.role,
+        plan: updatedUser.plan
+      }));
     }
   };
 
   const createUser = async (name: string, email: string, password: string, role: UserRole = 'user', plan: UserPlan = 'free') => {
-    const tempId = Math.random().toString(36).substr(2, 9);
-    const path = `users/${tempId}`;
-    try {
-      const newUser: User = {
-        id: tempId,
-        name,
-        email,
-        role,
-        plan,
-        createdAt: Date.now()
-      };
-      await setDoc(doc(db, path), newUser);
-      return true;
-    } catch (error) {
-      handleFirestoreError(error, OperationType.CREATE, path);
+    const trimmedEmail = email.trim().toLowerCase();
+    if (users.some(u => u.email.toLowerCase() === trimmedEmail)) {
       return false;
     }
+
+    const newUser: User = {
+      id: Math.random().toString(36).substr(2, 9),
+      name: name.trim(),
+      email: trimmedEmail,
+      password: password,
+      role,
+      plan,
+      createdAt: Date.now()
+    };
+
+    const updatedUsers = [...users, newUser];
+    setUsers(updatedUsers);
+    localStorage.setItem('flix_users', JSON.stringify(updatedUsers));
+    return true;
   };
 
   const deleteUser = async (userId: string) => {
-    const path = `users/${userId}`;
-    try {
-      await deleteDoc(doc(db, path));
-      if (user?.id === userId) await logout();
-    } catch (error) {
-      handleFirestoreError(error, OperationType.DELETE, path);
-    }
+    const updatedUsers = users.filter(u => u.id !== userId);
+    setUsers(updatedUsers);
+    localStorage.setItem('flix_users', JSON.stringify(updatedUsers));
+    if (user?.id === userId) logout();
   };
 
   return (
@@ -257,7 +270,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       isPremium: user?.plan === 'premium' || user?.role === 'admin',
       loading
     }}>
-      {!loading && children}
+      {loading ? (
+        <div className="min-h-screen bg-black flex items-center justify-center">
+          <div className="w-12 h-12 border-4 border-netflix-red border-t-transparent rounded-full animate-spin" />
+        </div>
+      ) : (
+        children
+      )}
     </AuthContext.Provider>
   );
 }

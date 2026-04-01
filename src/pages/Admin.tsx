@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Plus, Trash2, Pencil, Pin, RefreshCcw, Users, LayoutDashboard, Film, CreditCard, ArrowUpCircle, ArrowDownCircle, X, QrCode, Smartphone } from 'lucide-react';
+import { Plus, Trash2, Pencil, Pin, RefreshCcw, Users, LayoutDashboard, Film, CreditCard, ArrowUpCircle, ArrowDownCircle, X, QrCode, Smartphone, Copy, Check } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import { tmdbService, IMAGE_BASE_URL } from '../services/tmdb';
 import { useApp } from '../contexts/AppContext';
@@ -13,6 +13,7 @@ export function Admin() {
   const [contentType, setContentType] = useState<'movie' | 'tv'>('movie');
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState({ text: '', type: '' });
+  const [copied, setCopied] = useState(false);
   
   // User creation state
   const [newUser, setNewUser] = useState({ name: '', email: '', password: '', plan: 'free' as 'free' | 'premium' });
@@ -30,6 +31,14 @@ export function Admin() {
   } = useApp();
 
   const { user, users, updateUserPlan, updateUserDetails, createUser, deleteUser } = useAuth();
+
+  const sharedUrl = window.location.origin.replace('ais-dev-', 'ais-pre-');
+
+  const handleCopyLink = () => {
+    navigator.clipboard.writeText(sharedUrl);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
 
   // Admin account update state
   const [adminDetails, setAdminDetails] = useState({ 
@@ -56,21 +65,28 @@ export function Admin() {
     }
   };
 
-  const handleCreateUser = (e: React.FormEvent) => {
+  const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newUser.name || !newUser.email || !newUser.password) {
       setMessage({ text: 'Preencha todos os campos.', type: 'error' });
       return;
     }
 
-    const success = createUser(newUser.name, newUser.email, newUser.password, 'user', newUser.plan);
-    if (success) {
-      setMessage({ text: 'Usuário criado com sucesso!', type: 'success' });
-      setNewUser({ name: '', email: '', password: '', plan: 'free' });
-    } else {
-      setMessage({ text: 'Email já cadastrado.', type: 'error' });
+    setLoading(true);
+    try {
+      const success = await createUser(newUser.name, newUser.email, newUser.password, 'user', newUser.plan);
+      if (success) {
+        setMessage({ text: 'Usuário criado com sucesso!', type: 'success' });
+        setNewUser({ name: '', email: '', password: '', plan: 'free' });
+      } else {
+        setMessage({ text: 'Erro ao criar usuário. Verifique se o email já existe.', type: 'error' });
+      }
+    } catch (error) {
+      setMessage({ text: 'Erro ao criar usuário no banco de dados.', type: 'error' });
+    } finally {
+      setLoading(false);
+      setTimeout(() => setMessage({ text: '', type: '' }), 3000);
     }
-    setTimeout(() => setMessage({ text: '', type: '' }), 3000);
   };
 
   const handleUpdateAdmin = (e: React.FormEvent) => {
@@ -133,7 +149,7 @@ export function Admin() {
             <h3 className="text-4xl font-bold">{stats.totalUsers}</h3>
           </div>
           <div className="bg-netflix-dark p-6 rounded-xl border border-gray-800">
-            <p className="text-gray-400 text-sm mb-1">Assinantes Premium</p>
+            <p className="text-gray-400 text-sm mb-1">Assinantes</p>
             <h3 className="text-4xl font-bold text-green-500">{stats.premiumUsers}</h3>
           </div>
           <div className="bg-netflix-dark p-6 rounded-xl border border-gray-800">
@@ -342,26 +358,75 @@ export function Admin() {
       )}
 
       {activeTab === 'mobile' && (
-        <div className="max-w-xl mx-auto bg-netflix-dark p-8 rounded-xl border border-gray-800 text-center">
-          <QrCode size={48} className="mx-auto mb-4 text-netflix-red" />
-          <h2 className="text-2xl font-bold mb-2">Acesso Mobile</h2>
-          <p className="text-gray-400 mb-8">Escaneie o código abaixo com a câmera do seu celular para abrir o Flix BR instantaneamente.</p>
-          
-          <div className="bg-white p-6 rounded-xl inline-block mb-8 shadow-2xl">
-            <QRCodeSVG 
-              value={window.location.origin} 
-              size={250}
-              level="M"
-              includeMargin={true}
-            />
-          </div>
-          
-          <div className="space-y-4">
-            <p className="text-sm text-gray-500">Link Direto:</p>
-            <div className="bg-black/40 p-3 rounded border border-gray-800 font-mono text-xs break-all text-netflix-red select-all">
-              {window.location.origin}
+        <div className="max-w-2xl mx-auto">
+          <div className="bg-netflix-dark p-8 rounded-xl border border-gray-800 text-center shadow-2xl">
+            <div className="w-16 h-16 bg-netflix-red/20 rounded-full flex items-center justify-center mx-auto mb-6">
+              <Smartphone size={32} className="text-netflix-red" />
             </div>
-            <p className="text-xs text-gray-500 italic">Dica: Adicione o site à sua tela inicial no celular para usá-lo como um aplicativo real!</p>
+            <h2 className="text-3xl font-bold mb-2">Acesso Mobile</h2>
+            <p className="text-gray-400 mb-8 max-w-md mx-auto">
+              Assista seus filmes e séries favoritos em qualquer lugar. Escaneie o código abaixo para abrir a versão otimizada para celular.
+            </p>
+            
+            <div className="relative inline-block group">
+              <div className="absolute -inset-1 bg-gradient-to-r from-netflix-red to-red-900 rounded-2xl blur opacity-25 group-hover:opacity-50 transition duration-1000 group-hover:duration-200"></div>
+              <div className="relative bg-white p-6 rounded-2xl inline-block mb-8 shadow-2xl transform transition-transform hover:scale-105 duration-300">
+                <QRCodeSVG 
+                  value={sharedUrl} 
+                  size={280}
+                  level="H"
+                  includeMargin={true}
+                  imageSettings={{
+                    src: "https://upload.wikimedia.org/wikipedia/commons/0/08/Netflix_2015_logo.svg",
+                    x: undefined,
+                    y: undefined,
+                    height: 40,
+                    width: 40,
+                    excavate: true,
+                  }}
+                />
+              </div>
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-left">
+              <div className="p-5 bg-black/40 rounded-xl border border-gray-800">
+                <h4 className="font-bold mb-3 flex items-center gap-2">
+                  <Copy size={16} className="text-netflix-red" /> Link Direto
+                </h4>
+                <div className="flex gap-2">
+                  <div className="flex-1 bg-gray-900 p-3 rounded border border-gray-700 font-mono text-[10px] break-all text-netflix-red overflow-hidden">
+                    {sharedUrl}
+                  </div>
+                  <button 
+                    onClick={handleCopyLink}
+                    className="p-3 bg-netflix-red rounded-lg hover:bg-red-700 transition-colors shrink-0"
+                  >
+                    {copied ? <Check size={18} /> : <Copy size={18} />}
+                  </button>
+                </div>
+              </div>
+
+              <div className="p-5 bg-yellow-900/10 rounded-xl border border-yellow-700/20">
+                <h4 className="font-bold mb-3 text-yellow-500 flex items-center gap-2">
+                  <X size={16} /> Erro 403?
+                </h4>
+                <p className="text-xs text-gray-400 leading-relaxed">
+                  Se aparecer "403 Forbidden", certifique-se de estar logado no Google no seu celular com a conta: <br/>
+                  <strong className="text-yellow-500/80">{user?.email}</strong>
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-8 pt-8 border-t border-gray-800 flex flex-wrap justify-center gap-8 text-gray-500 text-xs">
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                Otimizado para iOS & Android
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 bg-netflix-red rounded-full"></div>
+                Suporte a PWA (Instalável)
+              </div>
+            </div>
           </div>
         </div>
       )}
@@ -498,7 +563,7 @@ export function Admin() {
       {activeTab === 'subscriptions' && (
         <div className="bg-netflix-dark p-8 rounded-xl border border-gray-800 text-center max-w-2xl mx-auto">
           <CreditCard size={48} className="mx-auto mb-4 text-netflix-red" />
-          <h2 className="text-2xl font-bold mb-2">Controle de Assinaturas</h2>
+          <h2 className="text-2xl font-bold mb-2">Gerenciar Assinaturas</h2>
           <p className="text-gray-400 mb-8">Gerencie planos e simule aprovações de pagamento manualmente para testes.</p>
           
           <div className="grid grid-cols-1 gap-4">
